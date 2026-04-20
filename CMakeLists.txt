@@ -56,3 +56,7 @@ if(Immersity_RUNTIME_DLLS)
         VERBATIM
     )
 endif()
+
+enable_testing()
+add_test(NAME odyssey-smoke COMMAND odyssey --smoke-test)
+set_tests_properties(odyssey-smoke PROPERTIES TIMEOUT 30)

@@ -72,14 +72,7 @@ D3D11Device::D3D11Device(HWND hwnd, UINT width, UINT height)
 }
 
 D3D11Device::~D3D11Device() {
-    releaseBackBufferView();
-    if (m_swapChain) { m_swapChain->Release(); m_swapChain = nullptr; }
-    if (m_context)   { m_context->ClearState(); m_context->Flush(); m_context->Release(); m_context = nullptr; }
-
-    // Device release must happen before ReportLiveDeviceObjects — we query a
-    // debug interface first, release the device, then report. Any still-live
-    // objects print via OutputDebugString.
-    reportLiveObjects();
+    teardownAndProbe();
 }
 
 void D3D11Device::createBackBufferView() {
@@ -107,7 +100,7 @@ void D3D11Device::resize(UINT width, UINT height) {
     createBackBufferView();
 }
 
-void D3D11Device::clearAndPresent(const float rgbaLinear[4]) {
+HRESULT D3D11Device::clearAndPresent(const float rgbaLinear[4]) {
     m_context->OMSetRenderTargets(1, &m_rtv, nullptr);
     D3D11_VIEWPORT vp{};
     vp.Width    = (FLOAT)m_width;
@@ -115,21 +108,39 @@ void D3D11Device::clearAndPresent(const float rgbaLinear[4]) {
     vp.MaxDepth = 1.0f;
     m_context->RSSetViewports(1, &vp);
     m_context->ClearRenderTargetView(m_rtv, rgbaLinear);
-    m_swapChain->Present(1, 0);
+    return m_swapChain->Present(1, 0);
 }
 
-void D3D11Device::reportLiveObjects() {
+int D3D11Device::teardownAndProbe() {
+    releaseBackBufferView();
+    if (m_swapChain) { m_swapChain->Release(); m_swapChain = nullptr; }
+    if (m_context)   { m_context->ClearState(); m_context->Flush(); m_context->Release(); m_context = nullptr; }
+
+    if (!m_device) return 0;
+
+    int unexpected = -1;
 #ifdef _DEBUG
     ID3D11Debug* dbg{};
-    if (m_device && SUCCEEDED(m_device->QueryInterface(__uuidof(ID3D11Debug), (void**)&dbg))) {
+    if (SUCCEEDED(m_device->QueryInterface(__uuidof(ID3D11Debug), (void**)&dbg))) {
         OutputDebugStringW(L"[odyssey] D3D11 live-object report follows:\n");
-        if (m_device) { m_device->Release(); m_device = nullptr; }
-        dbg->ReportLiveDeviceObjects((D3D11_RLDO_FLAGS)(D3D11_RLDO_SUMMARY | D3D11_RLDO_DETAIL));
+        // IGNORE_INTERNAL filters out D3D11's own book-keeping objects so the
+        // summary reflects only things we (or our callers) failed to release.
+        dbg->ReportLiveDeviceObjects((D3D11_RLDO_FLAGS)(D3D11_RLDO_SUMMARY | D3D11_RLDO_DETAIL | D3D11_RLDO_IGNORE_INTERNAL));
+
+        // At this point our tracked objects (swap chain, context, RTV) are gone.
+        // The only refs on the device should be: 1 from us + 1 from the QI that
+        // produced `dbg`. Release dbg, then probe the device's refcount: AddRef
+        // returns the new count, Release returns the decremented count. If the
+        // post-Release count is not 1, something else still holds the device.
         dbg->Release();
-        return;
+        ULONG after = m_device->AddRef();
+        m_device->Release();
+        unexpected = (after == 2) ? 0 : static_cast<int>(after) - 2;
     }
 #endif
-    if (m_device) { m_device->Release(); m_device = nullptr; }
+    m_device->Release();
+    m_device = nullptr;
+    return unexpected;
 }
 
 } // namespace odyssey

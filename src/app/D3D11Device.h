@@ -15,7 +15,13 @@ public:
     D3D11Device& operator=(const D3D11Device&) = delete;
 
     void resize(UINT width, UINT height);
-    void clearAndPresent(const float rgbaLinear[4]);
+    HRESULT clearAndPresent(const float rgbaLinear[4]);
+
+    // Tears down swap chain / context / RTV and releases the device, reporting
+    // any D3D11 objects that outlived us. Returns the number of unexpected
+    // live objects (0 == clean). -1 in non-debug builds where we can't probe.
+    // Safe to call multiple times; the dtor calls it if the caller didn't.
+    int teardownAndProbe();
 
     ID3D11Device*        device()  const { return m_device; }
     ID3D11DeviceContext* context() const { return m_context; }
@@ -23,7 +29,6 @@ public:
 private:
     void createBackBufferView();
     void releaseBackBufferView();
-    void reportLiveObjects();
 
     HWND m_hwnd{nullptr};
     UINT m_width{0};

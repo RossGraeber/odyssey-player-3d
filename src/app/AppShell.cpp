@@ -13,6 +13,7 @@ AppShell::AppShell() {
     Win32Window::Callbacks cb;
     cb.onResize = [this](UINT w, UINT h) {
         if (m_device) m_device->resize(w, h);
+        ++m_resizeCount;
     };
     cb.onToggleFullscreen = [this]() {
         if (m_window) m_window->toggleBorderlessFullscreen();
@@ -33,6 +34,44 @@ int AppShell::run() {
         if (!m_window->pumpMessages()) break;
         m_device->clearAndPresent(kClearColor);
     }
+    return 0;
+}
+
+// Exercises the M0 success criteria without user input. Exit code 0 = pass.
+// Codes distinguish which check failed to keep CTest output actionable.
+int AppShell::runSmokeTest() {
+    constexpr int kFrames = 60;
+
+    for (int i = 0; i < kFrames; ++i) {
+        if (!m_window->pumpMessages()) return 10;
+        HRESULT hr = m_device->clearAndPresent(kClearColor);
+        if (FAILED(hr)) return 11;
+    }
+
+    const unsigned resizeBefore = m_resizeCount;
+    m_window->toggleBorderlessFullscreen();
+    for (int i = 0; i < 5; ++i) {
+        if (!m_window->pumpMessages()) return 12;
+        if (FAILED(m_device->clearAndPresent(kClearColor))) return 13;
+    }
+    if (m_resizeCount == resizeBefore) return 14;
+
+    const unsigned resizeAfterFs = m_resizeCount;
+    m_window->toggleBorderlessFullscreen();
+    for (int i = 0; i < 5; ++i) {
+        if (!m_window->pumpMessages()) return 15;
+        if (FAILED(m_device->clearAndPresent(kClearColor))) return 16;
+    }
+    if (m_resizeCount == resizeAfterFs) return 17;
+
+    PostMessageW(m_window->hwnd(), WM_CLOSE, 0, 0);
+    while (m_window->pumpMessages() && m_running) {
+        m_device->clearAndPresent(kClearColor);
+    }
+
+    int live = m_device->teardownAndProbe();
+    if (live > 0) return 20 + (live > 9 ? 9 : live);
+
     return 0;
 }
 

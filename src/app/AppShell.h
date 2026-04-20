@@ -12,11 +12,13 @@ public:
     ~AppShell();
 
     int run();
+    int runSmokeTest();
 
 private:
     std::unique_ptr<Win32Window> m_window;
     std::unique_ptr<D3D11Device> m_device;
     bool m_running{true};
+    unsigned m_resizeCount{0};
 };
 
 } // namespace odyssey
