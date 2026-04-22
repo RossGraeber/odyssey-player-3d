@@ -111,6 +111,19 @@ HRESULT D3D11Device::clearAndPresent(const float rgbaLinear[4]) {
     return m_swapChain->Present(1, 0);
 }
 
+void D3D11Device::bindBackBufferForWeave() {
+    m_context->OMSetRenderTargets(1, &m_rtv, nullptr);
+    D3D11_VIEWPORT vp{};
+    vp.Width    = (FLOAT)m_width;
+    vp.Height   = (FLOAT)m_height;
+    vp.MaxDepth = 1.0f;
+    m_context->RSSetViewports(1, &vp);
+}
+
+HRESULT D3D11Device::present() {
+    return m_swapChain->Present(1, 0);
+}
+
 int D3D11Device::teardownAndProbe() {
     releaseBackBufferView();
     if (m_swapChain) { m_swapChain->Release(); m_swapChain = nullptr; }

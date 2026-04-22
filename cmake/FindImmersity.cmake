@@ -38,7 +38,12 @@ if(NOT Immersity_ROOT)
         "(must contain include/sr/ and lib/). Searched: ${_immersity_search_paths}")
 endif()
 
-set(Immersity_INCLUDE_DIRS "${Immersity_ROOT}/include")
+set(Immersity_INCLUDE_DIRS
+    "${Immersity_ROOT}/include"
+    # sr/sense/core/transformation.h #includes <opencv2/opencv.hpp>; the SDK
+    # ships the matching OpenCV under third_party, so pull its include dir in.
+    "${Immersity_ROOT}/third_party/OpenCV/include"
+)
 
 set(_immersity_lib_names
     simulatedreality
@@ -61,6 +66,13 @@ foreach(_lib IN LISTS _immersity_lib_names)
     list(APPEND Immersity_LIBRARIES "${_full}")
 endforeach()
 
+# The SDK's transformation.h pulls OpenCV inlines that emit references to
+# cv::String::deallocate — the SDK ships opencv_world343 to resolve them.
+set(_immersity_opencv_lib "${Immersity_ROOT}/third_party/OpenCV/lib/x64/opencv_world343.lib")
+if(EXISTS "${_immersity_opencv_lib}")
+    list(APPEND Immersity_LIBRARIES "${_immersity_opencv_lib}")
+endif()
+
 # Runtime DLLs — canonical location on this machine is the LeiaSR Platform
 # install. Fall back to searching the SDK root in case a future SDK drop ships
 # DLLs alongside the libs.
@@ -82,6 +94,7 @@ set(_immersity_dll_names
     DimencoWeaving
     libserialport
     glog
+    opencv_world343
 )
 
 set(Immersity_RUNTIME_DLLS "")

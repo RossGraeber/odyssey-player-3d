@@ -17,6 +17,14 @@ public:
     void resize(UINT width, UINT height);
     HRESULT clearAndPresent(const float rgbaLinear[4]);
 
+    // M1 weaver path. Binds the backbuffer RTV + full-window viewport so the
+    // weaver writes into the swap chain, then hands control back to the caller.
+    void bindBackBufferForWeave();
+    HRESULT present();
+
+    UINT width()  const { return m_width; }
+    UINT height() const { return m_height; }
+
     // Tears down swap chain / context / RTV and releases the device, reporting
     // any D3D11 objects that outlived us. Returns the number of unexpected
     // live objects (0 == clean). -1 in non-debug builds where we can't probe.
