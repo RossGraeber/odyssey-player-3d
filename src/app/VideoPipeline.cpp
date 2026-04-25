@@ -25,6 +25,12 @@ static std::string wideToUtf8(const std::wstring& w) {
 
 static void freeAvFrame(AVFrame* f) { av_frame_free(&f); }
 
+// Trampolines that hand the AVD3D11VADeviceContext::lock/unlock callbacks
+// off to a std::recursive_mutex. We can't pass member functions directly so
+// the recursive mutex pointer travels through lock_ctx.
+static void d3dCtxLock(void* p)   { static_cast<std::recursive_mutex*>(p)->lock();   }
+static void d3dCtxUnlock(void* p) { static_cast<std::recursive_mutex*>(p)->unlock(); }
+
 // Allocates an AVHWFramesContext tied to our hwdevice with BindFlags that
 // include D3D11_BIND_SHADER_RESOURCE. FFmpeg's default pool only requests
 // D3D11_BIND_DECODER, which means the resulting NV12 textures can be decoded
@@ -100,6 +106,15 @@ VideoPipeline::VideoPipeline(ID3D11Device* device, const std::wstring& path)
         auto* d3dCtx = reinterpret_cast<AVD3D11VADeviceContext*>(hwCtx->hwctx);
         d3dCtx->device = m_device;
         m_device->AddRef();
+        // Hand FFmpeg our render-thread mutex so the decode thread serializes
+        // immediate-context access against our weaver/present sequences. The
+        // default behaviour (FFmpeg owns an internal mutex) only protects
+        // FFmpeg-internal calls — our convert/Draw/Present path would still
+        // race the decoder. See AVD3D11VADeviceContext docs in
+        // libavutil/hwcontext_d3d11va.h.
+        d3dCtx->lock     = d3dCtxLock;
+        d3dCtx->unlock   = d3dCtxUnlock;
+        d3dCtx->lock_ctx = &m_ctxMutex;
     }
     if (av_hwdevice_ctx_init(m_hwDevCtx) < 0)
         throw std::runtime_error("av_hwdevice_ctx_init failed");

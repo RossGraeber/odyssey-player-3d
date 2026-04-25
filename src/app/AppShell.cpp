@@ -258,6 +258,12 @@ int AppShell::runPlay(const std::wstring& videoPath) {
     while (m_running) {
         if (!m_window->pumpMessages()) break;
 
+        // All ID3D11DeviceContext access — including FFmpeg's CopySubresource
+        // for hwframe_transfer or pool allocation — is serialized through
+        // VideoPipeline::contextMutex. The decode thread takes the same lock
+        // via the lock/unlock callbacks we registered on FFmpeg's hwdevice.
+        std::lock_guard<std::recursive_mutex> ctxLk(vp.contextMutex());
+
         if (AVFrame* f = vp.pollLatest()) {
             if (lastFrame) av_frame_free(&lastFrame);
             lastFrame = f;
@@ -359,6 +365,9 @@ int AppShell::runPlaySmokeTest(const std::wstring& videoPath) {
         HwFrameRefs r = extractHwRefs(f);
         if (!r.tex) { av_frame_free(&lastFrame); return 8; }
 
+        // Serialize the render sequence against the decode thread; see the
+        // contextMutex comment in VideoPipeline.h.
+        std::lock_guard<std::recursive_mutex> ctxLk(vp->contextMutex());
         conv.convert(m_device->context(), r.tex, r.slice);
         weaver->frameBegin();
         m_device->bindBackBufferForWeave();
@@ -378,8 +387,15 @@ int AppShell::runPlaySmokeTest(const std::wstring& videoPath) {
     // panel rate while the decoder is faster — that's the design. The drop
     // ratio only becomes a real fault signal once we're pacing publishes
     // against the audio clock; until then we don't fail the smoke on it.
-    // (D3D11 validation-error gate also deferred while the debug layer is
-    // off — see TODO in D3D11Device.cpp.)
+
+#ifdef _DEBUG
+    ID3D11InfoQueue* iq{};
+    if (SUCCEEDED(m_device->device()->QueryInterface(__uuidof(ID3D11InfoQueue), (void**)&iq))) {
+        UINT64 n = iq->GetNumStoredMessagesAllowedByRetrievalFilter();
+        iq->Release();
+        if (n > 0) return 6;
+    }
+#endif
 
     return 0;
 }

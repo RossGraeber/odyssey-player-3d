@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <d3d11.h>
@@ -50,6 +51,16 @@ public:
     unsigned decodedFrameCount() const { return m_decodedCount.load(); }
     unsigned droppedFrameCount() const { return m_mailbox.dropCount(); }
 
+    // Recursive mutex shared with FFmpeg's D3D11VA decoder so both threads
+    // serialize all ID3D11DeviceContext access. The render thread MUST hold
+    // this lock around any D3D11 call (CopySubresourceRegion, Map, Draw,
+    // weaver frameBegin/frameWeave, Present) — D3D11's MT-protect serializes
+    // individual calls atomically, but not multi-call render sequences. The
+    // FFmpeg decode thread acquires/releases this same lock via the callbacks
+    // we registered on AVD3D11VADeviceContext. Per FFmpeg's contract the lock
+    // must be recursive.
+    std::recursive_mutex& contextMutex() { return m_ctxMutex; }
+
 private:
     void decodeLoop();
 
@@ -63,6 +74,7 @@ private:
     int              m_tbNum{1}, m_tbDen{90000};
 
     FrameMailbox<AVFrame> m_mailbox;
+    std::recursive_mutex  m_ctxMutex;
     std::thread           m_thread;
     std::atomic<bool>     m_stop{false};
     std::atomic<bool>     m_done{false};

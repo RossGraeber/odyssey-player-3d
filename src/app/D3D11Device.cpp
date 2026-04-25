@@ -23,17 +23,9 @@ D3D11Device::D3D11Device(HWND hwnd, UINT width, UINT height)
     : m_hwnd(hwnd), m_width(width), m_height(height)
 {
     UINT flags = 0;
-    // TODO(M2 follow-up): the D3D11 debug layer fast-fails the process the
-    // moment the M2 NV12-sampling path issues a Draw, even with
-    // SetBreakOnSeverity(CORRUPTION|ERROR, FALSE) and an empty break list.
-    // The hardware path itself works (verified: 60 frames woven cleanly
-    // without the layer). Until we identify which API call the layer is
-    // unhappy with, leave the layer off so M2 ships; M0/M1 leak detection
-    // currently depends on this flag and is therefore weaker — a separate
-    // task tracks restoring it.
-    // #ifdef _DEBUG
-    //     flags |= D3D11_CREATE_DEVICE_DEBUG;
-    // #endif
+#ifdef _DEBUG
+    flags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
 
     const D3D_FEATURE_LEVEL levels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
 
