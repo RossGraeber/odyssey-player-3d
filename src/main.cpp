@@ -12,6 +12,8 @@ struct ParsedArgs {
     bool smokeTest{false};
     bool spike{false};
     bool spikeSmoke{false};
+    bool play{false};
+    bool playSmoke{false};
     std::wstring path;
 };
 
@@ -32,23 +34,43 @@ static ParsedArgs parseArgs() {
         } else if (a == L"--spike-smoke" && i + 1 < argc) {
             out.spikeSmoke = true;
             out.path = argv[++i];
+        } else if (a == L"--play" && i + 1 < argc) {
+            out.play = true;
+            out.path = argv[++i];
+        } else if (a == L"--play-smoke") {
+            out.playSmoke = true;
+            // Optional path arg; if absent, fall through to env-var lookup
+            // in the smoke test itself.
+            if (i + 1 < argc) out.path = argv[++i];
         }
     }
     LocalFree(argv);
     return out;
 }
 
+// Reads %ODYSSEY_TEST_M2_FSBS_MKV%. Empty string when unset.
+static std::wstring envVideoPath() {
+    wchar_t buf[1024]{};
+    DWORD n = GetEnvironmentVariableW(L"ODYSSEY_TEST_M2_FSBS_MKV", buf, ARRAYSIZE(buf));
+    if (n == 0 || n >= ARRAYSIZE(buf)) return {};
+    return std::wstring(buf, n);
+}
+
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
-    const ParsedArgs args = parseArgs();
-    const bool headless = args.smokeTest || args.spikeSmoke;
+    ParsedArgs args = parseArgs();
+    const bool headless = args.smokeTest || args.spikeSmoke || args.playSmoke;
+
+    if (args.playSmoke && args.path.empty()) args.path = envVideoPath();
 
     try {
         odyssey::AppShell app;
         if (args.smokeTest)   return app.runSmokeTest();
         if (args.spikeSmoke)  return app.runSpikeSmokeTest(args.path);
         if (args.spike)       return app.runSpike(args.path);
+        if (args.playSmoke)   return app.runPlaySmokeTest(args.path);
+        if (args.play)        return app.runPlay(args.path);
         return app.run();
     } catch (const std::exception& e) {
         if (headless) {

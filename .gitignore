@@ -4,3 +4,4 @@ out/
 *.user
 vcpkg_installed/
 CMakeUserPresets.json
+play-smoke-trace.log

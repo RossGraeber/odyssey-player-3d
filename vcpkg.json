@@ -1,5 +1,13 @@
 {
   "name": "odyssey-player-3d",
   "version": "0.0.1",
-  "dependencies": []
+  "dependencies": [
+    {
+      "name": "ffmpeg",
+      "default-features": false,
+      "features": ["avcodec", "avformat", "swresample", "swscale"]
+    },
+    "gtest"
+  ],
+  "builtin-baseline": "42f37e46d37baf7b218966434b91116bddf73461"
 }

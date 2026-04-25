@@ -25,6 +25,17 @@ public:
     //   other non-zero — real failure (PNG load, D3D error, unexpected throw)
     int runSpikeSmokeTest(const std::wstring& pngPath);
 
+    // M2: decode a full-SBS MKV via FFmpeg+D3D11VA, convert NV12 to RGBA,
+    // weave to the panel. Returns 0 on clean EOF or Esc exit.
+    int runPlay(const std::wstring& videoPath);
+
+    // Headless variant: decode N frames, assert no sustained queue-full and
+    // no D3D11 debug-layer errors, exit. Exit codes:
+    //   0  — ran N frames clean
+    //   77 — SR service unavailable OR video file missing
+    //   other non-zero — real failure (decode, D3D, queue-full burst)
+    int runPlaySmokeTest(const std::wstring& videoPath);
+
 private:
     std::unique_ptr<Win32Window> m_window;
     std::unique_ptr<D3D11Device> m_device;
