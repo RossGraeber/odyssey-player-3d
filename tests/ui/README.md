@@ -10,7 +10,7 @@ that headless CTest cannot.
 # One-time
 python -m venv tests/ui/.venv
 tests/ui/.venv/Scripts/pip install -r tests/ui/requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
+cp tests/ui/.env.example tests/ui/.env  # then edit ANTHROPIC_API_KEY in .env
 
 # Per-run (manual)
 build/windows-debug/Debug/odyssey.exe --play <fsbs.mkv> &

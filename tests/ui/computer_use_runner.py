@@ -28,6 +28,11 @@ import mss
 import pyautogui
 from PIL import Image
 from anthropic import Anthropic
+from dotenv import load_dotenv
+
+# Auto-load tests/ui/.env so callers don't have to remember to source it.
+# .env is gitignored; .env.example documents the keys.
+load_dotenv(Path(__file__).parent / ".env")
 
 # Computer-use API constraints. Sonnet 4.6 / Opus 4.6 use the older 1568-px
 # scaling rule; Opus 4.7 has 1:1 coords up to 2576 on the long edge but we
