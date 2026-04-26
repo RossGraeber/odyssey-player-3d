@@ -63,3 +63,25 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## 5. Milestone gating
+
+**Every major milestone (M0–M12 in the MVP plan) closes only after:**
+
+1. Headless tests green: `ctest --preset windows-debug --output-on-failure`.
+2. **Live UI integration test green** for that milestone. Delegate this to
+   the `ui-integration-tester` subagent
+   (`.claude/agents/ui-integration-tester.md`) with the milestone id, e.g.
+   *"Run UI integration tests for M2."* The subagent reads
+   `tests/ui/scenarios/<milestone>_*.md`, drives the running odyssey.exe
+   via the Anthropic computer-use API, and reports per-scenario verdicts.
+3. Commit + push (per the standing memory rule).
+
+If a milestone has no `tests/ui/scenarios/<milestone>_*.md` yet, write one
+*before* declaring the milestone complete. The scenario file is part of
+the milestone's deliverable, not optional QA polish.
+
+The UI test agent costs Anthropic API credits and requires
+`ANTHROPIC_API_KEY` set in the environment. Do not register it as a
+default `ctest` entry — it is invoked deliberately, at milestone
+boundaries.

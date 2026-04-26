@@ -5,3 +5,9 @@ out/
 vcpkg_installed/
 CMakeUserPresets.json
 play-smoke-trace.log
+
+# Claude Code per-machine state (allow-list, hooks). Subagent definitions
+# under .claude/agents/ ARE shared project config and should be committed.
+.claude/settings.json
+.claude/settings.local.json
+mood_board/
