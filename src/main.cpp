@@ -1,10 +1,13 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <exception>
+#include <cmath>
 #include <string>
+#include <utility>
 #include <wchar.h>
 
 #include "app/AppShell.h"
+#include "app/ImmersityRuntime.h"
 
 namespace {
 
@@ -14,6 +17,8 @@ struct ParsedArgs {
     bool spikeSmoke{false};
     bool play{false};
     bool playSmoke{false};
+    bool playerSmoke{false};
+    double playerSmokeSeconds{3.0};
     std::wstring path;
 };
 
@@ -42,6 +47,20 @@ static ParsedArgs parseArgs() {
             // Optional path arg; if absent, fall through to env-var lookup
             // in the smoke test itself.
             if (i + 1 < argc) out.path = argv[++i];
+        } else if (a == L"--player-smoke" && i + 1 < argc) {
+            out.playerSmoke = true;
+            out.path = argv[++i];
+            if (i + 1 < argc) {
+                wchar_t* end = nullptr;
+                const double parsed = wcstod(argv[i + 1], &end);
+                if (end && *end == L'\0' && std::isfinite(parsed)) {
+                    out.playerSmokeSeconds = parsed;
+                    ++i;
+                }
+            }
+        } else if (!a.empty() && a.front() != L'-') {
+            out.play = true;
+            out.path = std::move(a);
         }
     }
     LocalFree(argv);
@@ -59,8 +78,21 @@ static std::wstring envVideoPath() {
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    const HRESULT comResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    struct ComLifetime {
+        bool active;
+        ~ComLifetime() { if (active) CoUninitialize(); }
+    } com{SUCCEEDED(comResult)};
+    if (FAILED(comResult)) {
+        MessageBoxW(nullptr, L"Windows initialization failed", L"Odyssey Player 3D",
+                    MB_ICONERROR | MB_OK);
+        return 1;
+    }
+    odyssey::initializeImmersityRuntime();
+
     ParsedArgs args = parseArgs();
-    const bool headless = args.smokeTest || args.spikeSmoke || args.playSmoke;
+    const bool headless = args.smokeTest || args.spikeSmoke || args.playSmoke || args.playerSmoke;
 
     if (args.playSmoke && args.path.empty()) args.path = envVideoPath();
 
@@ -70,6 +102,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
         if (args.spikeSmoke)  return app.runSpikeSmokeTest(args.path);
         if (args.spike)       return app.runSpike(args.path);
         if (args.playSmoke)   return app.runPlaySmokeTest(args.path);
+        if (args.playerSmoke) return app.runPlayerSmoke(args.path, args.playerSmokeSeconds);
         if (args.play)        return app.runPlay(args.path);
         return app.run();
     } catch (const std::exception& e) {

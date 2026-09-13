@@ -3,12 +3,13 @@
 #include <windows.h>
 #include <d3d11_1.h>
 #include <dxgi1_2.h>
+#include <wrl/client.h>
 
 namespace odyssey {
 
 class D3D11Device {
 public:
-    D3D11Device(HWND hwnd, UINT width, UINT height);
+    D3D11Device(HWND hwnd, UINT width, UINT height, HMONITOR targetMonitor = nullptr);
     ~D3D11Device();
 
     D3D11Device(const D3D11Device&) = delete;
@@ -21,6 +22,7 @@ public:
     // weaver writes into the swap chain, then hands control back to the caller.
     void bindBackBufferForWeave();
     HRESULT present();
+    bool currentAdapterOwnsMonitor(HMONITOR monitor) const noexcept;
 
     UINT width()  const { return m_width; }
     UINT height() const { return m_height; }
@@ -31,8 +33,8 @@ public:
     // Safe to call multiple times; the dtor calls it if the caller didn't.
     int teardownAndProbe();
 
-    ID3D11Device*        device()  const { return m_device; }
-    ID3D11DeviceContext* context() const { return m_context; }
+    ID3D11Device*        device()  const { return m_device.Get(); }
+    ID3D11DeviceContext* context() const { return m_context.Get(); }
 
 private:
     void createBackBufferView();
@@ -42,10 +44,10 @@ private:
     UINT m_width{0};
     UINT m_height{0};
 
-    ID3D11Device*           m_device{nullptr};
-    ID3D11DeviceContext*    m_context{nullptr};
-    IDXGISwapChain1*        m_swapChain{nullptr};
-    ID3D11RenderTargetView* m_rtv{nullptr};
+    Microsoft::WRL::ComPtr<ID3D11Device> m_device;
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_context;
+    Microsoft::WRL::ComPtr<IDXGISwapChain1> m_swapChain;
+    Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_rtv;
 };
 
 } // namespace odyssey

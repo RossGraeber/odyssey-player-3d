@@ -20,11 +20,11 @@ cmake --preset windows-debug
 # Build (default target = odyssey.exe + odyssey_tests.exe)
 cmake --build --preset windows-debug
 
-# Run automated tests (M0 smoke, M1 weave smoke, M2 video smoke, units)
-ctest --preset windows-debug --output-on-failure
+# Run all tests on a visible desktop; activate each Odyssey SDK-smoke window
+ctest --preset windows-debug --output-on-failure --interactive-debug-mode 1
 
 # Run the M2 smoke test against a real MKV (file path optional via env)
-ODYSSEY_TEST_M2_FSBS_MKV=<path> ctest --preset windows-debug -R odyssey-m2
+ODYSSEY_TEST_M2_FSBS_MKV=<path> ctest --preset windows-debug -R odyssey-m2 --interactive-debug-mode 1
 
 # Live playback for hand-on inspection
 build/windows-debug/Debug/odyssey.exe --play <path-to-fsbs.mkv>
@@ -46,19 +46,20 @@ build/windows-debug/Debug/odyssey.exe --play <path-to-fsbs.mkv>
 - Smoke tests are real e2e CTest entries on the binary itself
   (`--smoke-test`, `--spike-smoke`, `--play-smoke`). Soft-skip via exit
   code 77 when fixtures or the SR service are absent.
-- **UI integration tests** live in `tests/ui/` and run on a visible window
-  via the Anthropic computer-use API. Invoke at the end of every major
-  milestone — see `.claude/agents/ui-integration-tester.md` and CLAUDE.md.
+- **UI integration scenarios** live in `tests/ui/` and run on a visible window
+  through normal local computer control. Invoke them at the end of every major
+  milestone and record the observable result; see CLAUDE.md.
 
 ## Boundaries
 
 - ✅ Always: read `CLAUDE.md` for behaviour rules; verify `git status`
   clean before commits; re-index via jcodemunch at milestone close.
 - ⚠️ Ask first: introducing new dependencies; restructuring CMake targets;
-  changing the milestone plan; spending API credits on the UI test agent.
+  changing the milestone plan.
 - 🚫 Never: bypass `/W4 /WX` with pragmas; add `--no-verify` to commits;
   commit binaries (PNGs in `assets/` are the only blessed exception);
-  write to `mood_board/` or `.claude/` from automated scripts.
+  write to `mood_board/` or `.claude/` from automated scripts; spend API
+  credits for UI verification.
 
 ## Git
 
