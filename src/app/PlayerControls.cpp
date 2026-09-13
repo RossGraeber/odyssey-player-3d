@@ -418,11 +418,12 @@ bool PlayerControls::captureNeeded() const noexcept {
 
 bool PlayerControls::visible(const PlayerControlState& state,
                              std::uint64_t nowMilliseconds) const noexcept {
-    if (!state.playing || state.forceVisible || pointerInside_ || state.menuOpen || drag_ != Drag::None ||
+    if (!state.playing || state.forceVisible || state.menuOpen || drag_ != Drag::None ||
         pressed_ != PlayerCommand::None ||
         !state.error.empty()) {
         return true;
     }
+    if (!pointerInside_) return false;
     return nowMilliseconds < lastMotionMilliseconds_ ||
            nowMilliseconds - lastMotionMilliseconds_ < hideDelayMilliseconds;
 }
