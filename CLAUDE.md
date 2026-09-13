@@ -68,20 +68,21 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **Every major milestone (M0–M12 in the MVP plan) closes only after:**
 
-1. Headless tests green: `ctest --preset windows-debug --output-on-failure`.
-2. **Live UI integration test green** for that milestone. Delegate this to
-   the `ui-integration-tester` subagent
-   (`.claude/agents/ui-integration-tester.md`) with the milestone id, e.g.
-   *"Run UI integration tests for M2."* The subagent reads
-   `tests/ui/scenarios/<milestone>_*.md`, drives the running odyssey.exe
-   via the Anthropic computer-use API, and reports per-scenario verdicts.
+1. Automated tests green. Run units and startup normally. Run SDK presentation
+   tests from a visible interactive desktop with `ctest --preset windows-debug
+   --output-on-failure --interactive-debug-mode 1`; give each Odyssey window
+   real Windows activation when requested.
+2. **Live UI integration test green** for that milestone. Read
+   `tests/ui/scenarios/<milestone>_*.md`, drive the visible `odyssey.exe`
+   through normal local computer control, and report per-scenario verdicts.
+   Foreground-sensitive SDK tests must receive real window activation; do not
+   weaken the application's foreground eligibility gate.
 3. Commit + push (per the standing memory rule).
 
 If a milestone has no `tests/ui/scenarios/<milestone>_*.md` yet, write one
 *before* declaring the milestone complete. The scenario file is part of
 the milestone's deliverable, not optional QA polish.
 
-The UI test agent costs Anthropic API credits and requires
-`ANTHROPIC_API_KEY` set in the environment. Do not register it as a
-default `ctest` entry — it is invoked deliberately, at milestone
-boundaries.
+Do not spend API credits for UI verification or require an API key. Keep live
+UI verification deliberate and local rather than registering it as a default
+`ctest` entry.

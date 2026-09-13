@@ -1,5 +1,6 @@
 #include "D3D11Device.h"
 
+#include <d3d10.h>
 #include <dxgi1_2.h>
 
 #ifdef _DEBUG
@@ -8,6 +9,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace odyssey {
 
@@ -19,7 +21,7 @@ static void hrCheck(HRESULT hr, const char* what) {
     }
 }
 
-D3D11Device::D3D11Device(HWND hwnd, UINT width, UINT height)
+D3D11Device::D3D11Device(HWND hwnd, UINT width, UINT height, HMONITOR targetMonitor)
     : m_hwnd(hwnd), m_width(width), m_height(height)
 {
     UINT flags = 0;
@@ -29,23 +31,62 @@ D3D11Device::D3D11Device(HWND hwnd, UINT width, UINT height)
 
     const D3D_FEATURE_LEVEL levels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
 
-    ID3D11Device*        dev{};
-    ID3D11DeviceContext* ctx{};
+    Microsoft::WRL::ComPtr<IDXGIAdapter1> selectedAdapter;
+    if (targetMonitor) {
+        Microsoft::WRL::ComPtr<IDXGIFactory1> selectionFactory;
+        hrCheck(CreateDXGIFactory1(IID_PPV_ARGS(&selectionFactory)), "CreateDXGIFactory1");
+        for (UINT adapterIndex = 0; ; ++adapterIndex) {
+            Microsoft::WRL::ComPtr<IDXGIAdapter1> adapter;
+            const HRESULT adapterResult = selectionFactory->EnumAdapters1(adapterIndex, &adapter);
+            if (adapterResult == DXGI_ERROR_NOT_FOUND) break;
+            hrCheck(adapterResult, "EnumAdapters1");
+            for (UINT outputIndex = 0; ; ++outputIndex) {
+                Microsoft::WRL::ComPtr<IDXGIOutput> output;
+                const HRESULT outputResult = adapter->EnumOutputs(outputIndex, &output);
+                if (outputResult == DXGI_ERROR_NOT_FOUND) break;
+                hrCheck(outputResult, "EnumOutputs");
+                DXGI_OUTPUT_DESC outputDescription{};
+                hrCheck(output->GetDesc(&outputDescription), "IDXGIOutput::GetDesc");
+                if (outputDescription.Monitor == targetMonitor) {
+                    selectedAdapter = adapter;
+                    break;
+                }
+            }
+            if (selectedAdapter) break;
+        }
+        if (!selectedAdapter) {
+            hrCheck(DXGI_ERROR_NOT_FOUND, "target monitor adapter");
+        }
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11Device> device;
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
     D3D_FEATURE_LEVEL    got{};
     HRESULT hr = D3D11CreateDevice(
-        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags,
+        selectedAdapter.Get(), selectedAdapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE,
+        nullptr, flags,
         levels, ARRAYSIZE(levels), D3D11_SDK_VERSION,
-        &dev, &got, &ctx);
+        &device, &got, &context);
     hrCheck(hr, "D3D11CreateDevice");
-    m_device  = dev;
-    m_context = ctx;
 
-    IDXGIDevice* dxgiDev{};
-    hrCheck(m_device->QueryInterface(__uuidof(IDXGIDevice), (void**)&dxgiDev), "QI IDXGIDevice");
-    IDXGIAdapter* adapter{};
-    hrCheck(dxgiDev->GetAdapter(&adapter), "GetAdapter");
-    IDXGIFactory2* factory{};
-    hrCheck(adapter->GetParent(__uuidof(IDXGIFactory2), (void**)&factory), "GetParent IDXGIFactory2");
+    // We supply this device to FFmpeg instead of using FFmpeg's device
+    // creation path, so mirror its multithread protection before decode can
+    // overlap a v-synced Present on the main thread.
+    Microsoft::WRL::ComPtr<ID3D10Multithread> multithread;
+    hr = device.As(&multithread);
+    hrCheck(hr, "QI ID3D10Multithread");
+    multithread->SetMultithreadProtected(TRUE);
+    const BOOL isMultithreadProtected = multithread->GetMultithreadProtected();
+    if (!isMultithreadProtected) {
+        throw std::runtime_error("D3D11 multithread protection could not be enabled");
+    }
+
+    Microsoft::WRL::ComPtr<IDXGIDevice> dxgiDevice;
+    hrCheck(device.As(&dxgiDevice), "QI IDXGIDevice");
+    Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
+    hrCheck(dxgiDevice->GetAdapter(&adapter), "GetAdapter");
+    Microsoft::WRL::ComPtr<IDXGIFactory2> factory;
+    hrCheck(adapter->GetParent(IID_PPV_ARGS(&factory)), "GetParent IDXGIFactory2");
 
     DXGI_SWAP_CHAIN_DESC1 scd{};
     // Flip-model swap chains cannot use _SRGB formats directly — the buffer
@@ -60,15 +101,27 @@ D3D11Device::D3D11Device(HWND hwnd, UINT width, UINT height)
     scd.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     scd.AlphaMode   = DXGI_ALPHA_MODE_UNSPECIFIED;
 
-    hrCheck(factory->CreateSwapChainForHwnd(m_device, m_hwnd, &scd, nullptr, nullptr, &m_swapChain),
+    Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain;
+    hrCheck(factory->CreateSwapChainForHwnd(device.Get(), m_hwnd, &scd,
+                                             nullptr, nullptr, &swapChain),
             "CreateSwapChainForHwnd");
-    factory->MakeWindowAssociation(m_hwnd, DXGI_MWA_NO_ALT_ENTER);
+    hrCheck(factory->MakeWindowAssociation(m_hwnd, DXGI_MWA_NO_ALT_ENTER),
+            "MakeWindowAssociation");
 
-    factory->Release();
-    adapter->Release();
-    dxgiDev->Release();
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
+    hrCheck(swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer)), "GetBuffer");
+    D3D11_RENDER_TARGET_VIEW_DESC renderTargetDescription{};
+    renderTargetDescription.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    renderTargetDescription.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    Microsoft::WRL::ComPtr<ID3D11RenderTargetView> renderTarget;
+    hrCheck(device->CreateRenderTargetView(backBuffer.Get(), &renderTargetDescription,
+                                            &renderTarget),
+            "CreateRenderTargetView");
 
-    createBackBufferView();
+    m_device = std::move(device);
+    m_context = std::move(context);
+    m_swapChain = std::move(swapChain);
+    m_rtv = std::move(renderTarget);
 }
 
 D3D11Device::~D3D11Device() {
@@ -76,19 +129,19 @@ D3D11Device::~D3D11Device() {
 }
 
 void D3D11Device::createBackBufferView() {
-    ID3D11Texture2D* backBuffer{};
-    hrCheck(m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer), "GetBuffer");
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
+    hrCheck(m_swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer)), "GetBuffer");
     // View format is sRGB so ClearRenderTargetView's linear color is correctly
     // encoded on write; the underlying buffer is _UNORM per flip-model rules.
     D3D11_RENDER_TARGET_VIEW_DESC rtvd{};
     rtvd.Format        = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     rtvd.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-    hrCheck(m_device->CreateRenderTargetView(backBuffer, &rtvd, &m_rtv), "CreateRenderTargetView");
-    backBuffer->Release();
+    hrCheck(m_device->CreateRenderTargetView(backBuffer.Get(), &rtvd, &m_rtv),
+            "CreateRenderTargetView");
 }
 
 void D3D11Device::releaseBackBufferView() {
-    if (m_rtv) { m_rtv->Release(); m_rtv = nullptr; }
+    m_rtv.Reset();
 }
 
 void D3D11Device::resize(UINT width, UINT height) {
@@ -101,18 +154,20 @@ void D3D11Device::resize(UINT width, UINT height) {
 }
 
 HRESULT D3D11Device::clearAndPresent(const float rgbaLinear[4]) {
-    m_context->OMSetRenderTargets(1, &m_rtv, nullptr);
+    ID3D11RenderTargetView* renderTarget = m_rtv.Get();
+    m_context->OMSetRenderTargets(1, &renderTarget, nullptr);
     D3D11_VIEWPORT vp{};
     vp.Width    = (FLOAT)m_width;
     vp.Height   = (FLOAT)m_height;
     vp.MaxDepth = 1.0f;
     m_context->RSSetViewports(1, &vp);
-    m_context->ClearRenderTargetView(m_rtv, rgbaLinear);
+    m_context->ClearRenderTargetView(m_rtv.Get(), rgbaLinear);
     return m_swapChain->Present(1, 0);
 }
 
 void D3D11Device::bindBackBufferForWeave() {
-    m_context->OMSetRenderTargets(1, &m_rtv, nullptr);
+    ID3D11RenderTargetView* renderTarget = m_rtv.Get();
+    m_context->OMSetRenderTargets(1, &renderTarget, nullptr);
     D3D11_VIEWPORT vp{};
     vp.Width    = (FLOAT)m_width;
     vp.Height   = (FLOAT)m_height;
@@ -124,35 +179,55 @@ HRESULT D3D11Device::present() {
     return m_swapChain->Present(1, 0);
 }
 
+bool D3D11Device::currentAdapterOwnsMonitor(HMONITOR monitor) const noexcept {
+    if (!monitor || !m_device) return false;
+    Microsoft::WRL::ComPtr<IDXGIDevice> dxgiDevice;
+    if (FAILED(m_device.As(&dxgiDevice))) return false;
+    Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
+    if (FAILED(dxgiDevice->GetAdapter(&adapter))) return false;
+    for (UINT index = 0; ; ++index) {
+        Microsoft::WRL::ComPtr<IDXGIOutput> output;
+        const HRESULT hr = adapter->EnumOutputs(index, &output);
+        if (hr == DXGI_ERROR_NOT_FOUND) return false;
+        if (FAILED(hr)) return false;
+        DXGI_OUTPUT_DESC description{};
+        if (FAILED(output->GetDesc(&description))) return false;
+        if (description.Monitor == monitor) return true;
+    }
+}
+
 int D3D11Device::teardownAndProbe() {
     releaseBackBufferView();
-    if (m_swapChain) { m_swapChain->Release(); m_swapChain = nullptr; }
-    if (m_context)   { m_context->ClearState(); m_context->Flush(); m_context->Release(); m_context = nullptr; }
+    m_swapChain.Reset();
+    if (m_context) {
+        m_context->ClearState();
+        m_context->Flush();
+        m_context.Reset();
+    }
 
     if (!m_device) return 0;
 
     int unexpected = -1;
 #ifdef _DEBUG
-    ID3D11Debug* dbg{};
-    if (SUCCEEDED(m_device->QueryInterface(__uuidof(ID3D11Debug), (void**)&dbg))) {
+    Microsoft::WRL::ComPtr<ID3D11Debug> debug;
+    if (SUCCEEDED(m_device.As(&debug))) {
         OutputDebugStringW(L"[odyssey] D3D11 live-object report follows:\n");
         // IGNORE_INTERNAL filters out D3D11's own book-keeping objects so the
         // summary reflects only things we (or our callers) failed to release.
-        dbg->ReportLiveDeviceObjects((D3D11_RLDO_FLAGS)(D3D11_RLDO_SUMMARY | D3D11_RLDO_DETAIL | D3D11_RLDO_IGNORE_INTERNAL));
+        debug->ReportLiveDeviceObjects((D3D11_RLDO_FLAGS)(D3D11_RLDO_SUMMARY | D3D11_RLDO_DETAIL | D3D11_RLDO_IGNORE_INTERNAL));
 
         // At this point our tracked objects (swap chain, context, RTV) are gone.
         // The only refs on the device should be: 1 from us + 1 from the QI that
         // produced `dbg`. Release dbg, then probe the device's refcount: AddRef
         // returns the new count, Release returns the decremented count. If the
         // post-Release count is not 1, something else still holds the device.
-        dbg->Release();
+        debug.Reset();
         ULONG after = m_device->AddRef();
         m_device->Release();
         unexpected = (after == 2) ? 0 : static_cast<int>(after) - 2;
     }
 #endif
-    m_device->Release();
-    m_device = nullptr;
+    m_device.Reset();
     return unexpected;
 }
 

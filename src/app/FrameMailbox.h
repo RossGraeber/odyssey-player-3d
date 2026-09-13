@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <utility>
@@ -34,9 +35,13 @@ public:
         int dropped = 0;
         {
             std::lock_guard<std::mutex> lk(m_mu);
-            if (m_slot) { m_del(m_slot); dropped = 1; ++m_dropCount; }
+            if (m_slot) {
+                m_del(m_slot);
+                dropped = 1;
+                m_dropCount.fetch_add(1, std::memory_order_relaxed);
+            }
             m_slot = item;
-            ++m_publishCount;
+            m_publishCount.fetch_add(1, std::memory_order_relaxed);
         }
         m_cv.notify_one();
         return dropped;
@@ -68,10 +73,12 @@ public:
         m_cv.notify_all();
     }
 
-    // Counters for diagnostics / tests. Not thread-safe to read concurrently
-    // with writes; fine for post-run assertions.
-    unsigned publishCount() const { return m_publishCount; }
-    unsigned dropCount()    const { return m_dropCount; }
+    unsigned publishCount() const {
+        return m_publishCount.load(std::memory_order_relaxed);
+    }
+    unsigned dropCount() const {
+        return m_dropCount.load(std::memory_order_relaxed);
+    }
 
 private:
     std::mutex              m_mu;
@@ -79,8 +86,8 @@ private:
     T*                      m_slot{nullptr};
     Deleter                 m_del;
     bool                    m_closed{false};
-    unsigned                m_publishCount{0};
-    unsigned                m_dropCount{0};
+    std::atomic<unsigned>   m_publishCount{0};
+    std::atomic<unsigned>   m_dropCount{0};
 };
 
 } // namespace odyssey

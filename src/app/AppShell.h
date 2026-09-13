@@ -28,6 +28,7 @@ public:
     // M2: decode a full-SBS MKV via FFmpeg+D3D11VA, convert NV12 to RGBA,
     // weave to the panel. Returns 0 on clean EOF or Esc exit.
     int runPlay(const std::wstring& videoPath);
+    int runPlayerSmoke(const std::wstring& videoPath, double seconds);
 
     // Headless variant: decode N frames, assert no sustained queue-full and
     // no D3D11 debug-layer errors, exit. Exit codes:
@@ -37,8 +38,23 @@ public:
     int runPlaySmokeTest(const std::wstring& videoPath);
 
 private:
+    struct Host;
+    void initializePersistentHost();
+    void retargetDeviceForDisplay();
+    void openMedia(const std::wstring& path, const std::wstring& playlistPath = {},
+                   bool startPaused = false);
+    void handlePlayerAction(int command, double value);
+    void renderPersistentFrame();
+    void showOpenDialog();
+    void showAudioMenu();
+    void showCaptionsMenu();
+    void showLayoutMenu();
+    void showIsoTitleMenu();
+    void setNativeUiActive(bool active, bool restorePlayback);
+
     std::unique_ptr<Win32Window> m_window;
     std::unique_ptr<D3D11Device> m_device;
+    std::unique_ptr<Host> m_host;
     bool m_running{true};
     unsigned m_resizeCount{0};
 };
