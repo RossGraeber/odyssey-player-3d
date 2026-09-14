@@ -122,7 +122,7 @@ TEST(PlayerControls, AutoHideRequiresPlayingAndNoActiveReasonToRemainVisible) {
     auto state = playingState();
 
     controls.pointerMove(100, 100, 1920, 1080, state, 100);
-    EXPECT_TRUE(controls.visible(state, 2599));
+    EXPECT_FALSE(controls.visible(state, 2599));
     EXPECT_FALSE(controls.visible(state, 2600));
 
     state.playing = false;
@@ -139,16 +139,20 @@ TEST(PlayerControls, AutoHideRequiresPlayingAndNoActiveReasonToRemainVisible) {
     EXPECT_TRUE(controls.visible(state, 9000));
 }
 
-TEST(PlayerControls, HoverAndDraggingKeepPanelVisibleAndMotionRestoresIt) {
+TEST(PlayerControls, OnlyRecentMotionOverPanelRevealsItDuringPlayback) {
     PlayerControls controls;
     auto state = playingState();
 
-    controls.pointerMove(50, 1000, 1920, 1080, state, 100);
-    EXPECT_TRUE(controls.visible(state, 5000));
-    controls.pointerMove(50, 100, 1920, 1080, state, 5000);
-    EXPECT_TRUE(controls.visible(state, 5000));
+    controls.pointerMove(50, 100, 1920, 1080, state, 100);
+    EXPECT_FALSE(controls.visible(state, 100));
+    EXPECT_FALSE(controls.visible(state, 5000));
 
-    controls.pointerDown(600, 950, 1920, 1080, state, 5100);
+    controls.pointerMove(600, 950, 1920, 1080, state, 5000);
+    EXPECT_TRUE(controls.visible(state, 5000));
+    EXPECT_TRUE(controls.visible(state, 7499));
+    EXPECT_FALSE(controls.visible(state, 7500));
+
+    controls.pointerDown(600, 950, 1920, 1080, state, 7600);
     EXPECT_TRUE(controls.visible(state, 9000));
 }
 
@@ -198,6 +202,7 @@ TEST(PlayerControls, RejectsClientsBelowTheDocumentedMinimum) {
 TEST(PlayerControls, RendersCompactUnicodeBgraPanel) {
     PlayerControls controls;
     auto state = playingState();
+    state.playing = false;
 
     const auto surface = controls.render(state, 1920, 1080, 0);
     EXPECT_TRUE(surface.visible);
