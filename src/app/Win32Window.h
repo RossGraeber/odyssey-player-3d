@@ -18,6 +18,9 @@ public:
         std::function<void()> onMouseLeave;
         std::function<void(MouseButton button, int x, int y)> onMouseDown;
         std::function<void(MouseButton button, int x, int y)> onMouseUp;
+        std::function<void(int x, int y)> onMouseDoubleClick;
+        std::function<void(int wheelNotches)> onMouseWheel;
+        std::function<bool(UINT virtualKey, bool ctrl, bool shift)> onKeyDown;
         std::function<void()> onCaptureLost;
         std::function<void(bool focused)> onFocusChanged;
         std::function<void(bool minimized)> onMinimizedChanged;
@@ -61,6 +64,7 @@ private:
     bool  m_trackingMouseLeave{false};
     bool  m_suppressCaptureLost{false};
     bool  m_cursorVisible{true};
+    int   m_wheelAccumulator{0};
 };
 
 } // namespace odyssey

@@ -50,9 +50,11 @@ HRESULT AudioOutput::initialize() noexcept {
         }
     }
     if (SUCCEEDED(hr)) {
+        // 100 ms buffer (headroom against feeder-thread stalls); media clock reads
+        // IAudioClock so playback position is unaffected.
         hr = audioClient_->Initialize(AUDCLNT_SHAREMODE_SHARED,
                                       AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-                                      0, 0, mixFormat_, nullptr);
+                                      1'000'000, 0, mixFormat_, nullptr);
     }
     if (SUCCEEDED(hr)) {
         hr = audioClient_->SetEventHandle(event_);

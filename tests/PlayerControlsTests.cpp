@@ -1,9 +1,12 @@
 #include "app/PlayerControls.h"
 
+#include <windows.h>
+
 #include <gtest/gtest.h>
 
 #include <array>
 #include <limits>
+#include <string>
 
 namespace {
 
@@ -230,4 +233,100 @@ TEST(PlayerControls, SanitizesNonFiniteTimelineAndVolumeValues) {
     EXPECT_FALSE(surface.bgra.empty());
     expectCommand(controls.pointerDown(500, 950, 1920, 1080, state, 1), PlayerCommand::None);
     EXPECT_FALSE(controls.captureNeeded());
+}
+
+TEST(PlayerControls, KeyboardMapsTransportKeys) {
+    auto state = playingState(); // position 30, duration 100, volume 0.5
+
+    expectCommand(PlayerControls::keyAction(VK_SPACE, false, false, state), PlayerCommand::PlayPause);
+    expectCommand(PlayerControls::keyAction('M', false, false, state), PlayerCommand::ToggleMute);
+
+    const PlayerAction right = PlayerControls::keyAction(VK_RIGHT, false, false, state);
+    expectCommand(right, PlayerCommand::Seek);
+    EXPECT_DOUBLE_EQ(right.value, 35.0);
+
+    const PlayerAction shiftRight = PlayerControls::keyAction(VK_RIGHT, false, true, state);
+    expectCommand(shiftRight, PlayerCommand::Seek);
+    EXPECT_DOUBLE_EQ(shiftRight.value, 60.0);
+
+    const PlayerAction ctrlLeft = PlayerControls::keyAction(VK_LEFT, true, false, state);
+    expectCommand(ctrlLeft, PlayerCommand::Seek);
+    EXPECT_DOUBLE_EQ(ctrlLeft.value, 0.0);
+
+    const PlayerAction home = PlayerControls::keyAction(VK_HOME, false, false, state);
+    expectCommand(home, PlayerCommand::Seek);
+    EXPECT_DOUBLE_EQ(home.value, 0.0);
+
+    const PlayerAction up = PlayerControls::keyAction(VK_UP, false, false, state);
+    expectCommand(up, PlayerCommand::SetVolume);
+    EXPECT_DOUBLE_EQ(up.value, 0.55);
+
+    auto silent = state;
+    silent.volume = 0.0;
+    const PlayerAction down = PlayerControls::keyAction(VK_DOWN, false, false, silent);
+    expectCommand(down, PlayerCommand::SetVolume);
+    EXPECT_DOUBLE_EQ(down.value, 0.0);
+
+    auto noDuration = state;
+    noDuration.durationSeconds = 0.0;
+    expectCommand(PlayerControls::keyAction(VK_RIGHT, false, false, noDuration), PlayerCommand::None);
+
+    expectCommand(PlayerControls::keyAction(VK_ESCAPE, false, false, state), PlayerCommand::Close);
+    auto fullscreenState = state;
+    fullscreenState.fullscreen = true;
+    expectCommand(PlayerControls::keyAction(VK_ESCAPE, false, false, fullscreenState), PlayerCommand::Fullscreen);
+
+    expectCommand(PlayerControls::keyAction('Q', false, false, state), PlayerCommand::None);
+    expectCommand(PlayerControls::keyAction('Q', true, false, state), PlayerCommand::Close);
+
+    auto noAudio = state;
+    noAudio.audioMenuEnabled = false;
+    expectCommand(PlayerControls::keyAction('A', false, false, noAudio), PlayerCommand::None);
+}
+
+TEST(PlayerControls, KeyboardActivityRevealsPanelBriefly) {
+    PlayerControls controls;
+    auto state = playingState();
+
+    EXPECT_FALSE(controls.visible(state, 100));
+    controls.keyboardActivity(100);
+    EXPECT_TRUE(controls.visible(state, 2599));
+    EXPECT_FALSE(controls.visible(state, 2600));
+}
+
+TEST(PlayerControls, HoverHintDescribesControlUnderPointer) {
+    PlayerControls controls;
+    auto state = playingState();
+
+    controls.pointerMove(268, 1016, 1920, 1080, state, 0);
+    EXPECT_NE(controls.hoverHint(state, 1920, 1080).find(L"Space"), std::wstring::npos);
+
+    controls.pointerMove(500, 950, 1920, 1080, state, 1);
+    EXPECT_EQ(controls.hoverHint(state, 1920, 1080).rfind(L"Seek to ", 0), 0u);
+
+    controls.pointerMove(1600, 1000, 1920, 1080, state, 2);
+    EXPECT_NE(controls.hoverHint(state, 1920, 1080).find(L"Volume"), std::wstring::npos);
+
+    controls.pointerMove(100, 100, 1920, 1080, state, 3);
+    const std::wstring idle = controls.hoverHint(state, 1920, 1080);
+    EXPECT_NE(idle.find(L"M mute"), std::wstring::npos);
+
+    controls.pointerLeave(4);
+    EXPECT_EQ(controls.hoverHint(state, 1920, 1080), idle);
+}
+
+TEST(PlayerControls, HoverHintFollowsSeekDragOutsidePanel) {
+    PlayerControls controls;
+    auto state = playingState();
+
+    controls.pointerDown(500, 950, 1920, 1080, state, 0);
+    controls.pointerMove(1450, 100, 1920, 1080, state, 1);
+    EXPECT_EQ(controls.hoverHint(state, 1920, 1080).rfind(L"Seek to ", 0), 0u);
+}
+
+TEST(PlayerControls, PanelContainsMatchesGeometry) {
+    PlayerControls controls;
+    EXPECT_TRUE(controls.panelContains(500, 950, 1920, 1080));
+    EXPECT_FALSE(controls.panelContains(100, 100, 1920, 1080));
+    EXPECT_FALSE(controls.panelContains(10, 10, 959, 120));
 }

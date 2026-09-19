@@ -35,6 +35,7 @@ struct PlayerControlState {
     bool isIso{false};
     bool menuOpen{false};
     bool forceVisible{false};
+    bool fullscreen{false};
     bool audioMenuEnabled{true};
     bool captionsMenuEnabled{true};
     bool isoTitleMenuEnabled{true};
@@ -63,6 +64,19 @@ class PlayerControls {
 public:
     static constexpr int minimumClientWidth = 960;
     static constexpr int minimumClientHeight = 120;
+
+    // Maps a Win32 virtual-key press to a player action. Seek and volume
+    // actions carry absolute values derived from the state.
+    static PlayerAction keyAction(unsigned virtualKey, bool ctrl, bool shift,
+                                  const PlayerControlState& state) noexcept;
+
+    // Mouse-over help for whatever the pointer is currently on; idle text
+    // listing the main shortcuts when nothing is hovered.
+    std::wstring hoverHint(const PlayerControlState& state,
+                           int clientWidth, int clientHeight) const;
+
+    bool panelContains(int x, int y, int clientWidth, int clientHeight) const noexcept;
+    void keyboardActivity(std::uint64_t nowMilliseconds) noexcept;
 
     PlayerControlSurface render(const PlayerControlState& state,
                                 int clientWidth,
@@ -95,6 +109,7 @@ private:
     int pointerY_{0};
     PlayerCommand pressed_{PlayerCommand::None};
     std::uint64_t lastMotionMilliseconds_{0};
+    std::uint64_t revealUntilMilliseconds_{0};
 };
 
 } // namespace odyssey

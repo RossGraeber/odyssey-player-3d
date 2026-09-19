@@ -18,6 +18,28 @@ The current implementation supports:
 The player renders both movie and controls to both eyes, applies Immersity weaving,
 and verifies window and runtime conditions before enabling stereo output.
 
+## Keyboard and mouse
+
+Hovering any control shows its description and shortcut in the panel header.
+
+| Action | Shortcut |
+| --- | --- |
+| Play/pause | Space / K |
+| Stop | S |
+| Seek 5 s (Shift 30 s, Ctrl 60 s) | Left / Right |
+| Restart | Home |
+| Volume 5% | Up / Down or mouse wheel |
+| Mute | M |
+| Fullscreen | F / F11 / Alt+Enter / double-click |
+| Leave fullscreen, or quit when windowed | Esc |
+| Quit | Ctrl+Q |
+| Open | O |
+| Audio track | A |
+| Captions menu (not yet available; shortcut reserved) | C |
+| Layout | L |
+| Swap eyes | E |
+| Blu-ray title | I |
+
 ## Prerequisites
 
 - Windows x64 and Visual Studio C++ Desktop workload matching `CMakePresets.json`.
