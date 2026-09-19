@@ -11,3 +11,10 @@ play-smoke-trace.log
 .claude/settings.json
 .claude/settings.local.json
 mood_board/
+
+# Packaging / tooling scratch
+.apptmp/
+.dotnet-home/
+.dotnet-tools/
+_CPack_Packages/
+*.msi

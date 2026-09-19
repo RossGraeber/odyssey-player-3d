@@ -1,5 +1,7 @@
 #include <windows.h>
 
+#define IDR_ODYSSEY_ICON 101
+
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION 0,0,1,0
  PRODUCTVERSION 0,0,1,0
@@ -31,3 +33,5 @@ BEGIN
         VALUE "Translation", 0x0409, 1200
     END
 END
+
+IDR_ODYSSEY_ICON ICON "odyssey.ico"
