@@ -13,6 +13,7 @@
 
 #include "SubtitleCue.h"
 #include "BluRayTitles.h"
+#include "VideoPipeline.h"
 
 struct AVFrame;
 
@@ -74,6 +75,7 @@ public:
     std::vector<SubtitleCue> subtitleCuesAt(int64_t mediaNanoseconds);
     std::wstring subtitleError();
     TimingDiagnostics timingDiagnostics();
+    VideoPipeline::AudioDiagnostics audioDiagnostics();
 
     Status status();
     std::wstring error();

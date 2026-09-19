@@ -1366,7 +1366,11 @@ struct VideoPipeline::Impl {
             : state.ptsAnchorNs + av_rescale_q(
                 state.outputSamplesFromAnchor, AVRational{1, state.outputRate},
                 AVRational{1, static_cast<int>(kNanosecondsPerSecond)});
-        const int64_t toleranceNs = (2 * kNanosecondsPerSecond) / state.outputRate;
+        // Container timestamps are rounded to the stream time base (MKV = 1 ms), so
+        // sub-frame jitter must not re-anchor; floor tolerance at 10 ms, which bounds
+        // A/V drift well below perception while real discontinuities still re-anchor.
+        const int64_t toleranceNs = (std::max)(
+            (2 * kNanosecondsPerSecond) / state.outputRate, 10 * 1'000'000LL);
         if (state.ptsAnchorNs == AV_NOPTS_VALUE ||
             (candidatePtsNs != AV_NOPTS_VALUE &&
              std::llabs(candidatePtsNs - expectedPtsNs) > toleranceNs)) {

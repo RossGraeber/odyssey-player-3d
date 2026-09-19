@@ -177,6 +177,8 @@ struct AppShell::Host {
     bool swapEyes{false};
     bool muted{false};
     float volume{1.0f};
+    std::optional<double> pendingSeekSeconds;
+    std::uint64_t pendingSeekAt{0};
     StereoLayout retainedLayout{};
     UINT retainedSourceWidth{0};
     UINT retainedSourceHeight{0};
@@ -222,10 +224,10 @@ struct AppShell::Host {
         state.isoTitleMenuEnabled = state.isIso && !session->selectedTitleLabel().empty();
         state.captionsMenuEnabled = false;
         state.captionsLabel = L"Unavailable";
-        state.layoutLabel = layout == LayoutChoice::Auto ? L"LAYOUT: AUTO"
-            : layout == LayoutChoice::FullSbs ? L"LAYOUT: FULL SBS"
-            : layout == LayoutChoice::HalfSbs ? L"LAYOUT: HALF SBS"
-            : L"LAYOUT: 2D";
+        state.layoutLabel = layout == LayoutChoice::Auto ? L"Layout: Auto"
+            : layout == LayoutChoice::FullSbs ? L"Layout: Full SBS"
+            : layout == LayoutChoice::HalfSbs ? L"Layout: Half SBS"
+            : L"Layout: 2D";
         if (!currentPath.empty()) state.filename = std::filesystem::path(currentPath).filename().wstring();
         if (!hostError.empty()) state.error = hostError;
         else if (!displayError.empty()) state.error = displayError;
@@ -340,6 +342,44 @@ AppShell::AppShell() {
         if (m_host) m_host->minimized = minimized;
     };
     cb.onFileDropped = [this](std::wstring path) { openMedia(path); };
+    cb.onKeyDown = [this](UINT vk, bool ctrl, bool shift) -> bool {
+        if (!m_host || !m_window) return false;
+        if (m_host->nativeUiActive) return false;
+        PlayerControlState state = m_host->controlState();
+        state.fullscreen = m_window->isFullscreen();
+        const std::uint64_t now = GetTickCount64();
+        if (m_host->pendingSeekSeconds) {
+            if (now - m_host->pendingSeekAt < 1000) {
+                state.positionSeconds = *m_host->pendingSeekSeconds;
+            } else {
+                m_host->pendingSeekSeconds.reset();
+            }
+        }
+        m_host->controls.keyboardActivity(now);
+        m_host->controlsDirty = true;
+        const PlayerAction action = PlayerControls::keyAction(vk, ctrl, shift, state);
+        handlePlayerAction(static_cast<int>(action.command), action.value);
+        return action.command != PlayerCommand::None;
+    };
+    cb.onMouseWheel = [this](int notches) {
+        if (!m_host || !m_window) return;
+        if (m_host->nativeUiActive) return;
+        const double newVolume = std::clamp(m_host->volume + 0.05 * notches, 0.0, 1.0);
+        const std::uint64_t now = GetTickCount64();
+        m_host->controls.keyboardActivity(now);
+        m_host->controlsDirty = true;
+        handlePlayerAction(static_cast<int>(PlayerCommand::SetVolume), newVolume);
+    };
+    cb.onMouseDoubleClick = [this](int x, int y) {
+        if (!m_host || !m_window) return;
+        if (m_host->nativeUiActive) return;
+        m_host->controlsDirty = true;
+        if (m_host->controls.panelContains(
+                x, y, static_cast<int>(m_window->clientWidth()), static_cast<int>(m_window->clientHeight()))) {
+            return;
+        }
+        handlePlayerAction(static_cast<int>(PlayerCommand::Fullscreen), 0.0);
+    };
 
     m_window = std::make_unique<Win32Window>(L"Odyssey Player 3D", 1280, 720, std::move(cb));
     m_device = std::make_unique<D3D11Device>(m_window->hwnd(), 1280u, 720u);
@@ -953,10 +993,16 @@ void AppShell::handlePlayerAction(int rawCommand, double value) {
             m_host->pendingFrame.reset();
             m_host->retainedFrame.reset();
             m_host->haveViews = false;
+            m_host->pendingSeekSeconds = value;
+            m_host->pendingSeekAt = GetTickCount64();
         }
         break;
     case PlayerCommand::SetVolume:
         if (std::isfinite(value) && value >= 0.0 && value <= 1.0) {
+            if (value > m_host->volume && m_host->muted) {
+                m_host->muted = false;
+                if (m_host->session) m_host->session->setMuted(false);
+            }
             m_host->volume = static_cast<float>(value);
             if (m_host->session) m_host->session->setVolume(m_host->volume);
         }
@@ -1098,6 +1144,7 @@ void AppShell::renderPersistentFrame() {
     const bool readyFor3D = candidate3D && m_host->weaver->lensEnabled();
 
     PlayerControlState controlsState = m_host->controlState();
+    controlsState.fullscreen = m_window->isFullscreen();
     if (!readyFor3D) {
         controlsState.forceVisible = true;
         if (controlsState.error.empty()) {
@@ -1678,6 +1725,29 @@ int AppShell::runPlayerSmoke(const std::wstring& videoPath, double seconds) {
         static_cast<long long>(timing.runReference100ns),
         static_cast<unsigned long long>(timing.segmentCount),
         static_cast<unsigned long long>(timing.runCount), narrowUtf8(finalError).c_str());
+    {
+        // Audio A/V-sync diagnostics for smoke verification; written to a temp file
+        // since this is a WIN32 app and stderr may not be visible.
+        const VideoPipeline::AudioDiagnostics audio = m_host->session->audioDiagnostics();
+        char line[256];
+        std::snprintf(line, sizeof(line),
+            "PLAYER_SMOKE_AUDIO gap_silence=%llu late_trimmed=%llu content=%llu max_err_ns=%lld\n",
+            static_cast<unsigned long long>(audio.gapSilenceFramesSubmitted),
+            static_cast<unsigned long long>(audio.lateFramesTrimmed),
+            static_cast<unsigned long long>(audio.contentFramesSubmitted),
+            static_cast<long long>(audio.maximumSubmissionErrorNs));
+        OutputDebugStringA(line);
+        std::fputs(line, stderr);
+        wchar_t tempDir[MAX_PATH]{};
+        GetEnvironmentVariableW(L"TEMP", tempDir, MAX_PATH);
+        FILE* diagFile = nullptr;
+        _wfopen_s(&diagFile,
+            (std::filesystem::path(tempDir) / L"odyssey-audio-diag.txt").c_str(), L"a");
+        if (diagFile) {
+            std::fputs(line, diagFile);
+            std::fclose(diagFile);
+        }
+    }
     if (!finalError.empty() || finalStatus == PlaybackSession::Status::Failed ||
         finalStatus == PlaybackSession::Status::Paused) return 5;
     if (finalStatus == PlaybackSession::Status::Opening) return 11;

@@ -21,7 +21,7 @@ Win32Window::Win32Window(const wchar_t* title, int clientWidth, int clientHeight
 
     WNDCLASSEXW wc{};
     wc.cbSize        = sizeof(wc);
-    wc.style         = CS_HREDRAW | CS_VREDRAW;
+    wc.style         = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
     wc.lpfnWndProc   = &Win32Window::s_wndProc;
     wc.hInstance     = m_hinstance;
     wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
@@ -227,6 +227,16 @@ LRESULT Win32Window::wndProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             m_cb.onMouseUp(button, GET_X_LPARAM(lp), GET_Y_LPARAM(lp));
         }
         return 0;
+    case WM_LBUTTONDBLCLK:
+        if (m_cb.onMouseDoubleClick) m_cb.onMouseDoubleClick(GET_X_LPARAM(lp), GET_Y_LPARAM(lp));
+        return 0;
+    case WM_MOUSEWHEEL: {
+        m_wheelAccumulator += GET_WHEEL_DELTA_WPARAM(wp);
+        const int notches = m_wheelAccumulator / WHEEL_DELTA;
+        m_wheelAccumulator -= notches * WHEEL_DELTA;
+        if (notches != 0 && m_cb.onMouseWheel) m_cb.onMouseWheel(notches);
+        return 0;
+    }
     case WM_CAPTURECHANGED:
         if (!m_suppressCaptureLost && reinterpret_cast<HWND>(lp) != h &&
             m_cb.onCaptureLost) {
@@ -270,8 +280,9 @@ LRESULT Win32Window::wndProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         }
         break;
     case WM_KEYDOWN:
-        if (wp == VK_ESCAPE) {
-            if (m_cb.onQuit) m_cb.onQuit();
+        if (m_cb.onKeyDown && m_cb.onKeyDown(static_cast<UINT>(wp),
+                                              (GetKeyState(VK_CONTROL) & 0x8000) != 0,
+                                              (GetKeyState(VK_SHIFT) & 0x8000) != 0)) {
             return 0;
         }
         break;

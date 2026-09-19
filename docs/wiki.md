@@ -89,17 +89,16 @@ Fallback behavior is intentional:
 
 From the control strip:
 
-- `OPEN` opens native picker.
-- `PLAY/PAUSE`, `STOP`.
+- `Open` opens native picker.
+- `Play/Pause`, `Stop`.
 - Scrubber and click-to-seek.
-- `AUDIO` selector with labeled track list.
-- `CAPTIONS` selector with Off and offset.
-- `LAYOUT` selector (Auto/Full-SBS/Half-SBS/2D).
-- `SWAP EYES`.
-- `FULL`, `MIN`, `CLOSE`.
+- `Audio` selector with labeled track list.
+- `Captions` selector with Off and offset.
+- `Layout` selector (Auto/Full-SBS/Half-SBS/2D).
+- `Swap Eyes`.
+- `Full`, `Min`, `Close`.
 
-Keyboard accelerators are intentionally minimal and can be added only if they do not
-compete with normal media transport behavior.
+See the keyboard/mouse shortcut table in the README for accelerators.
 
 ## Verification workflow
 

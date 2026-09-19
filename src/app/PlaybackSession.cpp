@@ -59,6 +59,7 @@ PlaybackSession::PlaybackSession(ID3D11Device* device, std::wstring path,
         } else {
             VideoPipeline::Options options;
             options.audioEnabled = true;
+            options.enableAudioDiagnostics = true;
             options.startPaused = startPaused;
             options.muted = muted;
             options.volume = volume;
@@ -261,6 +262,11 @@ std::wstring PlaybackSession::subtitleError() {
     promoteVideo();
     return mvc_ ? widen(mvc_->subtitleError())
                 : (video_ ? widen(video_->subtitleError()) : std::wstring{});
+}
+
+VideoPipeline::AudioDiagnostics PlaybackSession::audioDiagnostics() {
+    promoteVideo();
+    return video_ ? video_->audioDiagnostics() : VideoPipeline::AudioDiagnostics{};
 }
 
 PlaybackSession::TimingDiagnostics PlaybackSession::timingDiagnostics() {
