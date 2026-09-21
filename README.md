@@ -18,6 +18,15 @@ The current implementation supports:
 The player renders both movie and controls to both eyes, applies Immersity weaving,
 and verifies window and runtime conditions before enabling stereo output.
 
+## Download and install
+
+Grab `Odyssey Player 3D-<version>-win64.exe` from the
+[Releases page](https://github.com/RossGraeber/odyssey-player-3d/releases) and run it.
+The installer ships `odyssey.exe`, the FFmpeg DLLs and the VC++ runtime; the
+LeiaSR Platform runtime must be installed separately. Install and usage notes,
+including troubleshooting, live in the
+[project wiki](https://github.com/RossGraeber/odyssey-player-3d/wiki).
+
 ## Keyboard and mouse
 
 Hovering any control shows its description and shortcut in the panel header.
@@ -154,6 +163,7 @@ Captions are composed before weaving and clipped to the visible 3D content area.
 
 ## Documentation
 
+- User and build guide: [GitHub wiki](https://github.com/RossGraeber/odyssey-player-3d/wiki)
 - Internal documentation and architecture notes: [`docs/wiki.md`](docs/wiki.md)
 - Test corpus and expected checks: [`docs/test-corpus.md`](docs/test-corpus.md)
 - Smoke run expectations: [`docs/smoke-tests.md`](docs/smoke-tests.md)
