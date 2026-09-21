@@ -73,15 +73,21 @@ cmake --build --preset windows-debug
 ctest --preset windows-debug --output-on-failure --interactive-debug-mode 1
 ```
 
+Packaging must use the Release preset: the debug CRT is not redistributable, so Debug builds are not packageable.
+
 To generate a Windows installer (NSIS required):
 
 ```powershell
-cmake --preset windows-debug
-cmake --build --preset windows-debug
-cpack -G NSIS -C Debug --config build/windows-debug/CPackConfig.cmake
+cmake --preset windows-release
+cmake --build --preset windows-release
+cpack -G NSIS -C Release --config build/windows-release/CPackConfig.cmake
 ```
 
 The installer uses the custom icon from `src/app/odyssey.ico` (Windows XP-style anaglyph glasses).
+
+The installed app still requires the LeiaSR / Immersity Platform runtime to be installed on the
+target machine: `SimulatedReality*.dll` and `opencv_world343.dll` are delay-loaded from it, not
+shipped in the MSI.
 
 To generate an MSI installer (WiX required, install once with
 `dotnet tool install wix --tool-path .dotnet-tools`, then put it on PATH):
@@ -89,10 +95,10 @@ The default CPack template also needs the UI extension once per machine:
 `.dotnet-tools\wix.exe extension add WixToolset.UI.wixext -g`.
 
 ```powershell
-cmake --preset windows-debug
-cmake --build --preset windows-debug
+cmake --preset windows-release
+cmake --build --preset windows-release
 $env:PATH = "$PWD\.dotnet-tools;$env:PATH"
-cpack -G WIX -C Debug --config build/windows-debug/CPackConfig.cmake
+cpack -G WIX -C Release --config build/windows-release/CPackConfig.cmake
 ```
 
 Unit tests are part of the default preset. Full player smoke entries use a visible

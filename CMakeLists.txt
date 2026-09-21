@@ -136,25 +136,41 @@ add_custom_command(TARGET odyssey POST_BUILD
 )
 
 install(TARGETS odyssey RUNTIME DESTINATION .)
+# FFmpeg runtime DLLs from vcpkg. Globbed at configure time so packaging does
+# not depend on dumpbin being on PATH (x_vcpkg_install_local_dependencies does).
+file(GLOB _odyssey_ffmpeg_release_dlls
+    "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/av*.dll"
+    "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/sw*.dll")
+if(NOT _odyssey_ffmpeg_release_dlls)
+    message(FATAL_ERROR "No FFmpeg runtime DLLs found under ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
+endif()
+install(FILES ${_odyssey_ffmpeg_release_dlls} DESTINATION . CONFIGURATIONS Release)
 install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION .)
 foreach(_lav_file IN LISTS _odyssey_lav_runtime_files)
     install(FILES "${ODYSSEY_LAV_ROOT}/${_lav_file}" DESTINATION lav)
 endforeach()
 
 if(WIN32)
+    set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION .)
+    include(InstallRequiredSystemLibraries)
+
     set(CPACK_GENERATOR "NSIS;WIX" CACHE STRING "Generators to use for CPack packaging on Windows")
     set(CPACK_PACKAGE_NAME "Odyssey Player 3D")
-    set(CPACK_PACKAGE_VENDOR "Odyssey Player 3D")
+    set(CPACK_PACKAGE_VENDOR "Ross Graeber")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "3D movie player for SBS and Blu-ray MVC media on Immersity displays")
+    set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/RossGraeber/odyssey-player-3d")
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "Odyssey Player 3D")
     set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+    set(CPACK_PACKAGE_EXECUTABLES "odyssey;Odyssey Player 3D")
     configure_file("${CMAKE_SOURCE_DIR}/LICENSE" "${CMAKE_BINARY_DIR}/LICENSE.txt" COPYONLY)
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_BINARY_DIR}/LICENSE.txt")
-    set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/src/app/odyssey.ico")
     set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/src/app/odyssey.ico")
     set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/src/app/odyssey.ico")
     set(CPACK_NSIS_INSTALLED_ICON_NAME "odyssey.exe")
     set(CPACK_WIX_PRODUCT_ICON "${CMAKE_SOURCE_DIR}/src/app/odyssey.ico")
     set(CPACK_WIX_VERSION 4)
+    set(CPACK_WIX_UPGRADE_GUID "724AB03F-3ECC-48C2-B7C1-835A5868FB3A")
+    set(CPACK_WIX_PROGRAM_MENU_FOLDER "Odyssey Player 3D")
     include(CPack)
 endif()
 
