@@ -18,3 +18,4 @@ mood_board/
 .dotnet-tools/
 _CPack_Packages/
 *.msi
+/Odyssey Player 3D-*.exe
