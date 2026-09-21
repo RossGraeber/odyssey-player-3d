@@ -162,6 +162,7 @@ if(WIN32)
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "Odyssey Player 3D")
     set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
     set(CPACK_PACKAGE_EXECUTABLES "odyssey;Odyssey Player 3D")
+    set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".") # NSIS defaults shortcuts to bin\, but exe installs at root
     configure_file("${CMAKE_SOURCE_DIR}/LICENSE" "${CMAKE_BINARY_DIR}/LICENSE.txt" COPYONLY)
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_BINARY_DIR}/LICENSE.txt")
     set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/src/app/odyssey.ico")
