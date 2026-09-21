@@ -51,11 +51,21 @@ Hovering any control shows its description and shortcut in the panel header.
 
 ## Prerequisites
 
-- Windows x64 and Visual Studio C++ Desktop workload matching `CMakePresets.json`.
-- CMake 3.21+ and Git submodules.
+- Windows x64 and [Visual Studio 2026](https://visualstudio.microsoft.com/downloads/)
+  C++ Desktop workload matching `CMakePresets.json`.
+- [CMake 3.21+](https://cmake.org/download/), [Git](https://git-scm.com/download/win)
+  with submodules, [7-Zip](https://www.7-zip.org/download.html) on `PATH`.
 - Immersity SDK headers/libraries (`include\sr` and `lib`) via `IMMERSITY_SDK_ROOT`.
-- LeiaSR runtime installed locally. Odyssey loads runtime DLLs from
+  Get it from [immersity.ai/developers](https://immersity.ai/developers) →
+  [SDK portal](https://support.immersity.ai/sdk) (account required).
+- LeiaSR runtime installed locally. On a Samsung Odyssey 3D it comes with
+  [Samsung Odyssey 3D Hub](https://apps.microsoft.com/detail/xp8lx6slrzb813)
+  (Microsoft Store). Odyssey loads runtime DLLs from
   `%ProgramFiles%\LeiaSR\Platform\bin` or `ODYSSEY_IMMERSITY_RUNTIME_DIR`.
+- Packaging only: [NSIS 3](https://nsis.sourceforge.io/Download); optionally
+  [WiX 4](https://wixtoolset.org/docs/intro/) for an MSI.
+
+Full dependency table with links: [wiki › Building](https://github.com/RossGraeber/odyssey-player-3d/wiki/Building).
 
 Prepare vcpkg and the private MVC dependency staging before build:
 
